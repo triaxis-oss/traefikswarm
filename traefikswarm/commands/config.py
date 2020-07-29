@@ -21,6 +21,8 @@ def configure_argparser(parser):
     parser.add_argument('--no-api', help='Disable API and dashboard', action='store_false', dest='api')
     parser.add_argument('--acme-email', help=f'ACME (Let\'s Encrypt) e-mail to use for registration')
     parser.add_argument('--acme-domains', help=f'ACME (Let\'s Encrypt) domains to use', action='append')
+    parser.add_argument('--acme-domains-add', help=f'ACME (Let\'s Encrypt) domains to add', action='append')
+    parser.add_argument('--acme-domains-rm', help=f'ACME (Let\'s Encrypt) domains to remove', action='append')
     parser.add_argument('--acme-dns-exe', help=f'ACME (Let\'s Encrypt) DNS auth handler executable')
     parser.add_argument('--acme-server', help=f'ACME (Let\'s Encrypt) server to use', default=None)
     parser.add_argument('--acme-staging', help=f'Enable use of ACME staging server', action='store_true', default=None)
@@ -34,10 +36,16 @@ class EntryPoint:
 
     def redirect_to(self, entrypoint, schema):
         self.args['http.redirections.entryPoint.to'] = entrypoint
-        self.args['http.redirections.entryPoint.schema'] = schema
+        self.args['http.redirections.entryPoint.scheme'] = schema
 
     def update(self, service, name):
         args = self.args.copy()
+
+        # remove acme domain settings from entrypoints without acme
+        if args.get('http.tls.certResolver', None) != 'acme':
+            args.pop('http.tls.domains[0].main', None)
+            args.pop('http.tls.domains[0].sans', None)
+
         prefix = f'--entrypoints.{name}.'
         for key, _ in [i for i in service.args.items()]:
             if key.startswith(prefix):
@@ -48,11 +56,32 @@ class EntryPoint:
                 else:
                     service.remove_arg(key)
         for key, value in args.items():
-            service.args[prefix + key] = value
+            service.ensure_arg(prefix + key, value)
 
     def remove(self, service, name):
         self.args.clear()
         self.update(service, name)
+
+    @property
+    def acme_domains(self):
+        main = self.args.get('http.tls.domains[0].main', None)
+        sans = self.args.get('http.tls.domains[0].sans', None)
+        res = [main] if main else []
+        if sans:
+            res = res + sans.split(',')
+        return res
+
+    @acme_domains.setter
+    def acme_domains(self, domains):
+        if len(domains):
+            self.args['http.tls.domains[0].main'] = domains[0]
+        else:
+            self.args.pop('http.tls.domains[0].main', None)
+
+        if len(domains) > 1:
+            self.args['http.tls.domains[0].sans'] = ','.join(domains[1:])
+        else:
+            self.args.pop('http.tls.domains[0].sans', None)
 
 default_ports = {
     'http': 80,
@@ -98,8 +127,15 @@ def execute(ctx: context.Context):
 
     # use Let's Encrypt certificates
     if args.acme_domains:
-        for ep in entrypoints:
-            ep.set_acme(args.acme_domains)
+        for ep in entrypoints.values():
+            ep.acme_domains = args.acme_domains
+    else:
+        if args.acme_domains_add:
+            for ep in entrypoints.values():
+                ep.acme_domains = ep.acme_domains + args.acme_domains_add
+        if args.acme_domains_rm:
+            for ep in entrypoints.values():
+                ep.acme_domains = [d for d in ep.acme_domains if d not in args.acme_domains_rm]
 
     if args.acme_store:
         traefik.ensure_mount('/acme.json', ctx.realpath(args.acme_store))
