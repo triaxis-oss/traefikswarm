@@ -11,6 +11,8 @@ def configure_argparser(parser):
     parser.add_argument('--env-rm', help='Environment to remove', action='append', default=[])
     parser.add_argument('--user-add', help=f'Basic auth user to add', action='append', default=[])
     parser.add_argument('--user-rm', help=f'Basic auth user to remove', action='append', default=[])
+    parser.add_argument('--arg-add', help=f'Argument to add', action='append', default=[])
+    parser.add_argument('--arg-rm', help=f'Argument to remove', action='append', default=[])
     parser.add_argument('--debug', help='Enable debug log', action='store_true', default=None)
     parser.add_argument('--no-debug', help='Disable debug log', action='store_false', dest='debug')
     parser.add_argument('--accesslog', help='Enable access log', action='store_true', default=None)
@@ -193,6 +195,11 @@ def execute(ctx: context.Context):
     traefik.ensure_arg('--providers.docker')
     traefik.ensure_arg('--providers.docker.swarmMode', 'true')
     traefik.ensure_arg('--providers.docker.exposedByDefault', 'false')
+
+    for arg in args.arg_rm:
+        traefik.remove_arg(f'--{arg}')
+    for arg in args.arg_add:
+        traefik.ensure_arg(f'--{arg}')
 
     # TODO: properly parameterize
     if 'http' in entrypoints:

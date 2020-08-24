@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="traefikswarm",
-    version="0.0.2",
+    version="0.0.3",
     author="Štefan Šimek",
     author_email="simek@triaxis.sk",
     description="A simple tool to manage traefik in a docker swarm",
