@@ -51,7 +51,7 @@ def docker_host(hostname=None):
         # use docker-machine host
         with open(os.path.expanduser(f'~/.docker/machine/machines/{hostname}/config.json')) as machine:
             cfg = json.load(machine)
-        addr = cfg['Driver']['URL'] or f"tcp://{cfg['Driver']['IPAddress']}:2376"
+        addr = cfg['Driver'].get('URL', None) or f"tcp://{cfg['Driver']['IPAddress']}:2376"
         machine = cfg['Driver']['MachineName']
         certs = cfg['HostOptions']['AuthOptions']
         res = docker.DockerClient(base_url=addr, tls=docker.tls.TLSConfig(

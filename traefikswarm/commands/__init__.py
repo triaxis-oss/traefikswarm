@@ -7,6 +7,7 @@ __all__ = [
     'forwarder',
     'expose',
     'unexpose',
+    'service',
 ]
 
 commands = [importlib.import_module(f'.{cmd}', __name__) for cmd in __all__]

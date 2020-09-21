@@ -85,6 +85,46 @@ class EntryPoint:
         else:
             self.args.pop('http.tls.domains[0].sans', None)
 
+    @property
+    def tls(self):
+        return 'http.tls' in self.args
+
+    @tls.setter
+    def tls(self, value):
+        if value:
+            self.args['http.tls'] = None
+        else:
+            self.args.pop('http.tls', None)
+
+    @property
+    def acme(self):
+        return self.args.get('http.tls.certResolver', None) == 'acme'
+
+    @acme.setter
+    def acme(self, value):
+        if value:
+            self.args['http.tls.certResolver'] = 'acme'
+        elif acme:
+            self.args.pop('http.tls.certResolver')
+
+    @property
+    def port(self):
+        listen = self.args.get('address', None)
+        if listen:
+            return int(listen.split(':')[1])
+        else:
+            return None
+
+    @port.setter
+    def port(self, value):
+        listen = self.args.get('address', None)
+        if listen:
+            parts = listen.split(':')
+            parts[1] = str(value)
+            self.args['address'] = ':'.join(parts)
+        else:
+            self.args['address'] = f':{value}'
+
 default_ports = {
     'http': 80,
     'https': 443,
@@ -123,9 +163,9 @@ def execute(ctx: context.Context):
                 ctx.abort(f'non-standard entrypoint name {name}, please specify port explicitly')
         else:
             port = int(parts[1])
-        entrypoints.setdefault(name, EntryPoint(name))
+        ep = entrypoints.setdefault(name, EntryPoint(name))
         ep.port = port
-        ep.tls = name != 'http' # TODO: explicit setting
+        ep.acme = ep.tls = name != 'http' # TODO: explicit setting
 
     # use Let's Encrypt certificates
     if args.acme_domains:
@@ -214,5 +254,15 @@ def execute(ctx: context.Context):
     traefik.ensure_mount('/var/run/docker.sock', '/var/run/docker.sock', 'ro')
 
     if ctx.opt_arg('user_add') or ctx.opt_arg('user_rm'):
-        users = traefik.labels.get('traefik.http.middlewares.traefik-auth.basicauth.users', '')
+        users = OrderedDict()
+        for entry in traefik.labels.get('traefik.http.middlewares.traefik-auth.basicauth.users', '').split(','):
+            if entry:
+                u, p = entry.split(':', 2)
+                users[u] = p
+        for u in ctx.opt_arg('user_rm'):
+            users.pop(u)
+        for e in ctx.opt_arg('user_add'):
+            u, p = e.split(':', 2)
+            users[u] = p
+        users = ','.join((f'{u}:{p}' for u, p in users.items()))
         traefik.ensure_label('traefik.http.middlewares.traefik-auth.basicauth.users', users)
