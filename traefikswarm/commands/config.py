@@ -59,6 +59,8 @@ class EntryPoint:
                     service.remove_arg(key)
         for key, value in args.items():
             service.ensure_arg(prefix + key, value)
+        if self.port:
+            service.ensure_port(self.port, TargetPort=self.port)
 
     def remove(self, service, name):
         self.args.clear()
@@ -104,7 +106,7 @@ class EntryPoint:
     def acme(self, value):
         if value:
             self.args['http.tls.certResolver'] = 'acme'
-        elif acme:
+        elif self.acme:
             self.args.pop('http.tls.certResolver')
 
     @property
@@ -153,6 +155,7 @@ def execute(ctx: context.Context):
         ep = entrypoints.pop(name, None)
         if ep:
             ep.remove(traefik, name)
+            traefik.remove_port(port)
             
     for spec in args.entrypoint_add:
         parts = spec.split('=', 2)
@@ -180,10 +183,10 @@ def execute(ctx: context.Context):
                 ep.acme_domains = [d for d in ep.acme_domains if d not in args.acme_domains_rm]
 
     if args.acme_store:
-        traefik.ensure_mount('/acme.json', ctx.realpath(args.acme_store))
+        traefik.ensure_mount('/acme.json', ctx.relpath(args.acme_store))
 
     if args.acme_dns_exe:
-        traefik.ensure_mount('/usr/local/bin/acme-dns', ctx.realpath(args.acme_dns_exe), 'ro')
+        traefik.ensure_mount('/usr/local/bin/acme-dns', ctx.relpath(args.acme_dns_exe), 'ro')
         traefik.ensure_arg('--certificatesResolvers.acme.acme.dnsChallenge.provider', 'exec')
         traefik.ensure_env('EXEC_PATH', '/usr/local/bin/acme-dns')
 

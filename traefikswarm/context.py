@@ -25,8 +25,8 @@ class Context:
     def abort(*args, **kwargs):
         raise Context.AbortException(*args, **kwargs)
 
-    def realpath(self, path):
-        return os.path.realpath(os.path.join(self.startdir, path))
+    def relpath(self, path):
+        return os.path.join(self.startdir, path)
 
     def opt_arg(self, name, default=None):
         return getattr(self.args, name, default)
