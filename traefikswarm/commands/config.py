@@ -113,7 +113,7 @@ class EntryPoint:
     def port(self):
         listen = self.args.get('address', None)
         if listen:
-            return int(listen.split(':')[1])
+            return int(listen.split(':')[1].split('/')[0])
         else:
             return None
 
@@ -122,10 +122,39 @@ class EntryPoint:
         listen = self.args.get('address', None)
         if listen:
             parts = listen.split(':')
-            parts[1] = str(value)
+            subparts = parts[1].split('/')
+            subparts[0] = str(value)
+            parts[1] = '/'.join(subparts)
             self.args['address'] = ':'.join(parts)
         else:
             self.args['address'] = f':{value}'
+
+    @property
+    def protocol(self):
+        listen = self.args.get('address', None)
+        if listen:
+            parts = listen.split(':')
+            subparts = parts[1].split('/')
+            return subparts[1] if len(subparts) > 1 else ''
+        else:
+            return None
+
+    @protocol.setter
+    def protocol(self, value):
+        listen = self.args.get('address', None)
+        if listen:
+            parts = listen.split(':')
+            subparts = parts[1].split('/')
+            if value:
+                subparts = [subparts[0], value]
+            else:
+                subparts = [subparts[0]]
+            parts[1] = '/'.join(subparts)
+            self.args['address'] = ':'.join(parts)
+        elif value:
+            self.args['address'] = f':0/{value}'
+        else:
+            self.args['address'] = f':0'
 
 default_ports = {
     'http': 80,
@@ -160,15 +189,20 @@ def execute(ctx: context.Context):
     for spec in args.entrypoint_add:
         parts = spec.split('=', 2)
         name = parts[0]
+        protocol = ''
         if len(parts) == 1:
             port = default_ports.get(name, None)
             if port is None:
                 ctx.abort(f'non-standard entrypoint name {name}, please specify port explicitly')
         else:
-            port = int(parts[1])
+            subparts = parts[1].split('/', 2)
+            port = int(subparts[0])
+            if len(subparts) > 1:
+                protocol = subparts[1]
         ep = entrypoints.setdefault(name, EntryPoint(name))
         ep.port = port
-        ep.acme = ep.tls = name != 'http' # TODO: explicit setting
+        ep.protocol = protocol
+        ep.acme = ep.tls = (name != 'http' and protocol == '') # TODO: explicit setting
 
     # use Let's Encrypt certificates
     if args.acme_domains:

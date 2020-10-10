@@ -11,7 +11,8 @@ def configure_argparser(parser):
     parser.add_argument('--lbtraefik', help='Use traefik load balancer', action='store_true', default=None)
     parser.add_argument('--router', help='Traefik router name override')
     parser.add_argument('--https', help='Use HTTPS for communication with backend', action='store_true', default=None)
-    parser.add_argument('--http', help='Use HTTP for communication with backend 9default)', action='store_false', dest='https')
+    parser.add_argument('--http', help='Use HTTP for communication with backend (default)', action='store_false', dest='https')
+    parser.add_argument('--tcp', help='Expose TCP directly', action='store_true', dest='tcp')
 
 def execute(ctx: Context):
     args = ctx.args
@@ -23,7 +24,8 @@ def execute(ctx: Context):
         ctx.abort(f'Service {name} not found')
 
     router = args.router or f'{svc.name}-{port}'
-    lprefix = f'traefik.http.routers.{router}'
+    protocol = 'tcp' if args.tcp else 'http'
+    lprefix = f'traefik.{protocol}.routers.{router}'
 
     entrypoints = [ep for ep in svc.labels.get(f'{lprefix}.entryPoints', '').split(',') if ep]
     for e in args.entrypoint_rm or ():
@@ -49,13 +51,14 @@ def execute(ctx: Context):
             hosts.append(h)
 
     wild = any((h for h in hosts if '*' in h))
+    sni = 'SNI' if args.tcp else ''
     if hosts:
         if wild:
-            rule = 'HostRegexp(`' + '`,`'.join((h.replace('*', '{domain:.+}') for h in hosts)) + '`)'
+            rule = 'Host{sni}Regexp(`' + '`,`'.join((h.replace('*', '{domain:.+}') for h in hosts)) + '`)'
         else:
-            rule = 'Host(`' + '`,`'.join(hosts) + '`)'
+            rule = 'Host{sni}(`' + '`,`'.join(hosts) + '`)'
     else:
-        rule = 'PathPrefix(`/`)'    # catch-all
+        rule = 'HostSNI(`*`)' if args.tcp else 'PathPrefix(`/`)'     # catch-all
 
     if not entrypoints:
         entrypoints = ['https']
@@ -68,9 +71,11 @@ def execute(ctx: Context):
     svc.ensure_label(f'{lprefix}.entryPoints', ','.join(entrypoints))
     svc.ensure_label(f'{lprefix}.service', router)
     svc.ensure_label(f'{lprefix}.rule', rule)
-    svc.ensure_label(f'{lprefix}.priority', len(rule) + (0 if wild else 100))
-    svc.ensure_label(f'traefik.http.services.{router}.loadbalancer.server.port', port)
-    if args.https == True:
-        svc.ensure_label(f'traefik.http.services.{router}.loadbalancer.server.scheme', 'https')
-    elif args.https == False:
-        svc.remove_label(f'traefik.http.services.{router}.loadbalancer.server.scheme')
+    if not args.tcp:
+        svc.ensure_label(f'{lprefix}.priority', len(rule) + (0 if wild else 100))
+    svc.ensure_label(f'traefik.{protocol}.services.{router}.loadbalancer.server.port', port)
+    if not args.tcp:
+        if args.https == True:
+            svc.ensure_label(f'traefik.http.services.{router}.loadbalancer.server.scheme', 'https')
+        elif args.https == False:
+            svc.remove_label(f'traefik.http.services.{router}.loadbalancer.server.scheme')
