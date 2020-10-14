@@ -14,6 +14,7 @@ def configure_argparser(parser):
     parser.add_argument('--https', help='Use HTTPS for communication with backend', action='store_true', default=None)
     parser.add_argument('--http', help='Use HTTP for communication with backend (default)', action='store_false', dest='https')
     parser.add_argument('--tcp', help='Expose TCP directly', action='store_true', dest='tcp')
+    parser.add_argument('--tls', help='Terminate TLS on TCP endpoint', action='store_true', dest='tls')
 
 def execute(ctx: Context):
     args = ctx.args
@@ -81,3 +82,8 @@ def execute(ctx: Context):
             svc.ensure_label(f'traefik.http.services.{router}.loadbalancer.server.scheme', 'https')
         elif args.https == False:
             svc.remove_label(f'traefik.http.services.{router}.loadbalancer.server.scheme')
+    if args.tcp:
+        if args.tls:
+            svc.ensure_label(f'{lprefix}.tls', '')
+        else:
+            svc.remove_label(f'{lprefix}.tls')
