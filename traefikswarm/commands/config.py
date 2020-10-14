@@ -168,9 +168,7 @@ def execute(ctx: context.Context):
 
     # required for docker access
     traefik.ensure_constraint('node.role == manager')
-    # default stack network access
-    if ctx.stackname:
-        traefik.ensure_network(ctx.stack_network)
+    traefik.ensure_network(ctx.traefik_network)
 
     # collect entrypoint args
     entrypoints = {}

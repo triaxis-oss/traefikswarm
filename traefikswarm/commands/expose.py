@@ -67,6 +67,8 @@ def execute(ctx: Context):
         entrypoints = ['https']
 
     svc.ensure_label('traefik.enable', 'true')
+    svc.ensure_label('traefik.docker.network', 'traefik')
+    svc.ensure_network(ctx.traefik_network)
     if args.lbswarm == True:
         svc.ensure_label('traefik.docker.lbswarm', 'true')
     elif args.lbtraefik == True:

@@ -54,13 +54,17 @@ class Context:
             dictionary['com.docker.stack.namespace'] = self.stackname
         return dictionary
 
-    def get_network(self, name='default'):
-        netname = self.add_stackname(name)
+    @property
+    def traefik_network(self):
+        return self.get_network('traefik', forceGlobal=True)
+
+    def get_network(self, name='default', forceGlobal=False):
+        netname = name if forceGlobal else self.add_stackname(name)
         networks = self.docker.networks.list(names=[netname])
         if len(networks):
             return networks[0]
         self.require_init('network', netname)
-        return self.docker.networks.create(netname, driver='overlay', labels=self.add_stacklabel(), attachable=True)
+        return self.docker.networks.create(netname, driver='overlay', labels={} if forceGlobal else self.add_stacklabel(), attachable=True)
 
     @property
     def stack_network(self):
