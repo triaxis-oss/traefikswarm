@@ -1,3 +1,4 @@
+import re
 from traefikswarm import Context
 
 def configure_argparser(parser):
@@ -37,11 +38,12 @@ def execute(ctx: Context):
 
     hosts = []
     rule = svc.labels.get(f'{lprefix}.rule', '')
-    if rule.endswith('`)'):
-        if rule.startswith('HostRegexp(`'):
-            hosts = rule[12:-2].replace('{domain:.+}', '*').split('`,`')
-        elif rule.startswith('Host(`'):
-            hosts = rule[6:-2].split('`,`')
+    match = re.fullmatch('(Host(?:SNI)?(?:Regexp)?)\(`(.+)`\)', rule)
+    if match:
+        if match[1].endswith('Regexp'):
+            hosts = match[2].replace('{domain:.+}', '*').split('`,`')
+        elif not (match[1] == 'HostSNI' and match[2] == '*'):
+            hosts = match[2].split('`,`')
     
     for h in args.host_rm or ():
         hosts.remove(h)
@@ -54,9 +56,9 @@ def execute(ctx: Context):
     sni = 'SNI' if args.tcp else ''
     if hosts:
         if wild:
-            rule = 'Host{sni}Regexp(`' + '`,`'.join((h.replace('*', '{domain:.+}') for h in hosts)) + '`)'
+            rule = f'Host{sni}Regexp(`' + '`,`'.join((h.replace('*', '{domain:.+}') for h in hosts)) + '`)'
         else:
-            rule = 'Host{sni}(`' + '`,`'.join(hosts) + '`)'
+            rule = f'Host{sni}(`' + '`,`'.join(hosts) + '`)'
     else:
         rule = 'HostSNI(`*`)' if args.tcp else 'PathPrefix(`/`)'     # catch-all
 
