@@ -164,7 +164,7 @@ default_ports = {
 def execute(ctx: context.Context):
     args = ctx.args
 
-    traefik = ctx.get_or_deploy_global_service('traefik', 'traefik:2.2')
+    traefik = ctx.get_or_deploy_global_service('traefik', 'traefik:2.3')
 
     # required for docker access
     traefik.ensure_constraint('node.role == manager')
