@@ -6,6 +6,8 @@ def configure_argparser(parser):
     parser.add_argument('--env-rm', help='Environment to remove', action='append', default=[])
     parser.add_argument('--arg-add', help=f'Argument to add', action='append', default=[])
     parser.add_argument('--arg-rm', help=f'Argument to remove', action='append', default=[])
+    parser.add_argument('--label-add', help=f'Label to add', action='append', default=[])
+    parser.add_argument('--label-rm', help=f'Label to remove', action='append', default=[])
 
 def execute(ctx: Context):
     args = ctx.args
@@ -24,3 +26,8 @@ def execute(ctx: Context):
         svc.remove_arg(f'--{arg}')
     for arg in args.arg_add:
         svc.ensure_arg(f'--{arg}')
+
+    for lbl in args.label_add:
+        svc.ensure_label(*lbl.split('=', 1))
+    for lbl in args.label_rm:
+        svc.remove_label(lbl)
